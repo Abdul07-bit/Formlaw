@@ -1,0 +1,19 @@
+fastapi>=0.121  # Depends(scope="function") so the DB commit happens before the response is sent
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+pydantic>=2.7
+email-validator>=2.1
+sqlalchemy>=2.0
+alembic>=1.13
+pyjwt>=2.8
+cryptography>=42
+httpx>=0.27
+pdfplumber>=0.11
+numpy>=1.26
+# Optional: Claude as a model provider (LLM_PROVIDER=anthropic)
+# anthropic>=0.70
+# PostgreSQL driver (not needed for SQLite development)
+psycopg[binary]>=3.1; platform_system != "Emscripten"
+
+# tests
+pytest>=8

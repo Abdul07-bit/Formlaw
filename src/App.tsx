@@ -1,49 +1,51 @@
-import { lazy, Suspense, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { AppShell, PublicLayout } from './components/layout'
-import { useSession } from './hooks/useStore'
-import Landing from './pages/Landing'
-import { createDemoCase, demoLogin } from './services/api'
+import { lazy, Suspense, type ReactNode } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { AppShell } from './components/layout/AppShell'
+import { Skeleton } from './components/ui'
+import { ViewerProvider } from './components/workbench/viewer'
+import { useAuth } from './lib/auth'
+import { homeFor, Landing, Login, Register } from './pages/Public'
 
-const GetStarted = lazy(() => import('./pages/GetStarted'))
-const HowItWorks = lazy(() => import('./pages/HowItWorks'))
-const LawyersMod = () => import('./pages/Lawyers')
-const LawyersPage = lazy(() => LawyersMod().then((m) => ({ default: m.LawyersPage })))
-const LawyerProfilePage = lazy(() => LawyersMod().then((m) => ({ default: m.LawyerProfilePage })))
-const ClientDashboard = lazy(() => import('./pages/client/ClientDashboard'))
-const NewCase = lazy(() => import('./pages/client/NewCase'))
-const CaseWorkspace = lazy(() => import('./pages/client/CaseWorkspace'))
-const LawyerDashboard = lazy(() => import('./pages/lawyer/LawyerDashboard'))
-const LawyerKyc = lazy(() => import('./pages/lawyer/LawyerKyc'))
-const LawyerCases = lazy(() => import('./pages/lawyer/LawyerCases'))
-const Messages = lazy(() => import('./pages/Messages'))
-const AdminMod = () => import('./pages/admin/Admin')
-const AdminKyc = lazy(() => AdminMod().then((m) => ({ default: m.AdminKyc })))
-const AdminCases = lazy(() => AdminMod().then((m) => ({ default: m.AdminCases })))
-const SecurityCenter = lazy(() => AdminMod().then((m) => ({ default: m.SecurityCenter })))
-const Observability = lazy(() => AdminMod().then((m) => ({ default: m.Observability })))
-
-// One-click judge demo: /demo (hero scenario) and /demo/attack (prompt-injection scenario).
-let lastDemo: { attack: boolean; at: number; to: string } | null = null
-function DemoLauncher({ attack = false }: { attack?: boolean }) {
-  const [to] = useState(() => {
-    // StrictMode invokes initialisers twice in dev — reuse the case created moments ago.
-    if (lastDemo && lastDemo.attack === attack && Date.now() - lastDemo.at < 2000) return lastDemo.to
-    demoLogin('client')
-    lastDemo = { attack, at: Date.now(), to: `/app/cases/${createDemoCase(attack).id}?run=1` }
-    return lastDemo.to
-  })
-  return <Navigate to={to} replace />
-}
+const Home = lazy(() => import('./pages/lawyer/Home'))
+const CaseWorkspace = lazy(() => import('./pages/lawyer/CaseWorkspace'))
+const Research = lazy(() => import('./pages/lawyer/Research'))
+const Profile = lazy(() => import('./pages/lawyer/Profile'))
+const Settings = lazy(() => import('./pages/lawyer/Settings'))
+const Admin = lazy(() => import('./pages/admin/Admin'))
+const Compliance = lazy(() => import('./pages/admin/Admin').then((m) => ({ default: m.CompliancePage })))
+const Workspace = () => import('./pages/lawyer/Workspace')
+const DraftsPage = lazy(() => Workspace().then((m) => ({ default: m.DraftsPage })))
+const SavedPage = lazy(() => Workspace().then((m) => ({ default: m.SavedPage })))
+const RequestsPage = lazy(() => Workspace().then((m) => ({ default: m.RequestsPage })))
+const NotificationsPage = lazy(() => Workspace().then((m) => ({ default: m.NotificationsPage })))
+const Portal = () => import('./pages/client/Portal')
+const ClientShell = lazy(() => Portal().then((m) => ({ default: m.ClientShell })))
+const PortalHome = lazy(() => Portal().then((m) => ({ default: m.PortalHome })))
+const SubmitMatter = lazy(() => Portal().then((m) => ({ default: m.SubmitMatter })))
+const IntakeView = lazy(() => Portal().then((m) => ({ default: m.IntakeView })))
+const MatterView = lazy(() => Portal().then((m) => ({ default: m.MatterView })))
 
 function Loading() {
-  return <div className="mx-auto max-w-5xl space-y-4 px-6 pt-32"><div className="skeleton h-10 w-1/3" /><div className="skeleton h-40" /><div className="skeleton h-40" /></div>
+  return <div className="space-y-3 p-8"><Skeleton className="h-8 w-1/3" /><Skeleton className="h-40" /></div>
 }
 
-function AppHome() {
-  const u = useSession()
-  if (!u) return <Navigate to="/get-started" replace />
-  return <Navigate to={u.role === 'client' ? '/app/client' : u.role === 'admin' ? '/app/admin' : '/app/lawyer'} replace />
+/** Client-side routing is convenience only; the API enforces every permission. */
+function Gate({ role, children }: { role: 'lawyer' | 'client' | 'admin' | 'compliance'; children: ReactNode }) {
+  const { user, ready } = useAuth()
+  const location = useLocation()
+  if (!ready) return <Loading />
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
+  if (user.role !== role) return <Navigate to={homeFor(user)} replace />
+  return <>{children}</>
+}
+
+/** "/" is the public landing page for visitors and the workbench home for lawyers. */
+function Root() {
+  const { user, ready } = useAuth()
+  if (!ready) return <Loading />
+  if (!user) return <Landing />
+  if (user.role !== 'lawyer') return <Navigate to={homeFor(user)} replace />
+  return <AppShell />
 }
 
 export default function App() {
@@ -51,34 +53,40 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={<Loading />}>
         <Routes>
-          <Route element={<PublicLayout />}>
-            <Route path="/" element={<Landing />} />
-            <Route path="/get-started" element={<GetStarted />} />
-            <Route path="/how-it-works" element={<HowItWorks />} />
-            <Route path="/lawyers" element={<LawyersPage />} />
-            <Route path="/lawyers/:id" element={<LawyerProfilePage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/" element={<Root />}>
+            <Route index element={<Home />} />
           </Route>
-          <Route path="/app" element={<AppShell />}>
-            <Route index element={<AppHome />} />
-            <Route path="client" element={<ClientDashboard />} />
-            <Route path="cases/new" element={<NewCase />} />
-            <Route path="cases/:id" element={<CaseWorkspace />} />
-            <Route path="lawyers" element={<LawyersPage inApp />} />
-            <Route path="lawyers/:id" element={<LawyerProfilePage inApp />} />
-            <Route path="messages" element={<Messages />} />
-            <Route path="lawyer" element={<LawyerDashboard />} />
-            <Route path="lawyer/kyc" element={<LawyerKyc />} />
-            <Route path="lawyer/cases" element={<LawyerCases />} />
-            <Route path="admin" element={<AdminKyc />} />
-            <Route path="admin/cases" element={<AdminCases />} />
-            <Route path="admin/ops" element={<Observability />} />
-            <Route path="security" element={<SecurityCenter />} />
+          <Route element={<Gate role="lawyer"><AppShell /></Gate>}>
+            <Route path="/cases/:caseId" element={<CaseWorkspace />} />
+            <Route path="/cases/:caseId/t/:threadId" element={<CaseWorkspace />} />
+            <Route path="/cases/:caseId/drafts" element={<CaseDraftsRedirect />} />
+            <Route path="/research" element={<Research />} />
+            <Route path="/drafts" element={<DraftsPage />} />
+            <Route path="/saved" element={<SavedPage />} />
+            <Route path="/requests" element={<RequestsPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Settings />} />
           </Route>
-          <Route path="/demo" element={<DemoLauncher />} />
-          <Route path="/demo/attack" element={<DemoLauncher attack />} />
+          <Route element={<Gate role="client"><ViewerProvider><ClientShell /></ViewerProvider></Gate>}>
+            <Route path="/portal" element={<PortalHome />} />
+            <Route path="/portal/new" element={<SubmitMatter />} />
+            <Route path="/portal/requests/:id" element={<IntakeView />} />
+            <Route path="/portal/matters/:id" element={<MatterView />} />
+            <Route path="/portal/notifications" element={<NotificationsPage />} />
+          </Route>
+          <Route path="/admin" element={<Gate role="admin"><Admin /></Gate>} />
+          <Route path="/compliance" element={<Gate role="compliance"><Compliance /></Gate>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
     </BrowserRouter>
   )
+}
+
+function CaseDraftsRedirect() {
+  const id = location.pathname.split('/')[2]
+  return <Navigate to={`/cases/${id}?view=drafts${location.search.replace('?', '&')}`} replace />
 }

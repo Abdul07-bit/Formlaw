@@ -1,3 +1,33 @@
-node_modules
-dist
+# Dependencies & builds
+node_modules/
+dist/
+.vite/
 *.local
+*.tsbuildinfo
+
+# Secrets — never commit real values (use .env.example as the template)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local data (databases, uploaded files, logs)
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+backend/storage/
+*.log
+
+# Browser end-to-end test output
+test-results/
+playwright-report/
+
+# Generated demo upload files (python database/seeds/seed.py)
+demo/
+backend/tests/_scratch/
